@@ -1,0 +1,9 @@
+(load "kadena_repl_sandbox/kda-env/init.repl")
+
+(begin-tx)
+(namespace 'free)
+(load "multi-sig-manager.pact")
+
+(commit-tx)
+
+(typecheck "free.multi-sig-manager")
