@@ -3,7 +3,97 @@
 (begin-tx)
 (namespace 'free)
 (load "multi-sig-manager.pact")
-
+(create-table domains)
+(create-table transactions)
+(create-table approvals)
 (commit-tx)
 
 (typecheck "free.multi-sig-manager")
+
+(begin-tx)
+(env-data {'k-alice:["alice-key"],
+           'k-bob:["bob-key"],
+           'k-carol:["carol-key"]})
+
+(free.multi-sig-manager.add-domain "MY-DOMAIN" (map (read-keyset) ["k-alice","k-bob", "k-carol"]) 2)
+(commit-tx)
+
+; Deploy a first SC
+(begin-tx)
+(load "example_contract_v1.pact")
+(commit-tx)
+
+(begin-tx)
+(env-hash (hash "First attempt"))
+(expect-failure "Transaction not registered" "not registered" (free.multi-sig-manager.enforce-approved "MY-DOMAIN"))
+(commit-tx)
+
+; Register the transaction
+(begin-tx)
+;without sig
+(env-sigs [])
+(expect-failure "No sig"
+                (free.multi-sig-manager.propose-transaction "MY-DOMAIN" (hash "Second attempt")))
+
+; with sig ok
+(env-sigs [{'key:"alice-key", 'caps:[]}])
+(free.multi-sig-manager.propose-transaction "MY-DOMAIN" (hash "Second attempt"))
+(commit-tx)
+
+(begin-tx)
+(env-sigs [])
+(env-hash (hash "Second attempt"))
+(expect-failure "Not approved" "Not enough approvals" (free.multi-sig-manager.enforce-approved "MY-DOMAIN"))
+(commit-tx)
+
+
+(begin-tx)
+; First approver
+(env-data {'k-alice:["alice-key"]})
+; without sigs
+(env-sigs [])
+(expect-failure "No sigs" "Keyset failure"
+                (free.multi-sig-manager.approve (hash "Second attempt") (read-keyset 'k-alice)))
+; with sigs
+(env-sigs [{'key:"alice-key", 'caps:[]}])
+(free.multi-sig-manager.approve (hash "Second attempt") (read-keyset 'k-alice))
+(commit-tx)
+
+
+(begin-tx)
+(env-sigs [])
+(env-hash (hash "Second attempt"))
+(expect-failure "Not approved" "Not enough approvals" (free.multi-sig-manager.enforce-approved "MY-DOMAIN"))
+(commit-tx)
+
+; Try to redeploy with a missing signature
+; should not work =>
+; but in REPL I can't find how to "expect-failure" a contract deployment
+; so uncomment it and verify it fails with Not enough approvals
+
+;==========================================================>
+;(begin-tx)
+;(env-hash (hash "Second attempt"))
+;(load "example_contract_v2.pact")
+;(comit-tx)
+;==========================================================>
+
+; Second approver
+(begin-tx)
+(env-data {'k-carol:["carol-key"]})
+(env-sigs [{'key:"carol-key", 'caps:[]}])
+(free.multi-sig-manager.approve (hash "Second attempt") (read-keyset 'k-carol))
+(commit-tx)
+
+; Now it should be ok
+(begin-tx)
+(env-sigs [])
+(env-hash (hash "Second attempt"))
+(expect "Approved" true (free.multi-sig-manager.enforce-approved "MY-DOMAIN"))
+(rollback-tx)
+
+; Try to redeploy the contract => Should work
+(begin-tx)
+(env-hash (hash "Second attempt"))
+(load "example_contract_v2.pact")
+(commit-tx)

@@ -85,7 +85,9 @@
   (defun enforce-approved:bool (domain:string)
     @doc "Third step => Include this call in module GOVERNANCE"
     (with-read domains domain {'required-signers:=required-signers}
-      (with-read transactions (tx-hash) {'approvals-count:=approvals-count, 'domain:=tx-domain}
+      (with-default-read transactions (tx-hash) {'domain:"", 'approvals-count:0}
+                                                {'approvals-count:=approvals-count, 'domain:=tx-domain}
+        (enforce (!= tx-domain "") "Transaction not registered")
         (enforce (= domain tx-domain) "Bad domain name")
         (enforce (>= approvals-count required-signers) "Not enough approvals")))
   )
