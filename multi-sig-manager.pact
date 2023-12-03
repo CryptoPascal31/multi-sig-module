@@ -89,4 +89,8 @@
         (enforce (>= approvals-count required-signers) "Not enough approvals")))
   )
 
+  (defun get-approved-guard:guard (domain:string)
+    @doc "Guard can be used for account or namespace"
+    (create-user-guard (enforce-approved domain)))
+
 )
